@@ -8,6 +8,7 @@
 
 #include <bit>
 #include <new>
+#include <memory>
 
 #include <span>
 #include <array>
@@ -20,6 +21,17 @@
 #include <type_traits>
 #include <format>
 
+#if 0
+#include "./detail/_image.hpp"
+#include "./detail/constructor.destructor.operator=.hpp"
+#include "./detail/access.hpp"
+#include "./detail/split.merge.hpp"
+#include "./detail/operator/unary.hpp"
+#include "./detail/operator/scalar.hpp"
+#include "./detail/operator/matrix_addsub.hpp"
+#include "./detail/operator/matrix_mulpow.hpp"
+#include "./detail/operation/reduction.hpp"
+#else
 namespace elsie{
 
 template<class T> class matrix{
@@ -560,11 +572,15 @@ template<class T>
 void matrix<T>::transpose(){
   std::vector<T> res(col*row);
   constexpr const size_t block_size=64;
-  size_t i,j,I,J,Erow,Ecol;
-  for(i=0,Erow=std::min(block_size,row);i<row;Erow=std::min(i+=block_size,row))
-  for(j=0,Ecol=std::min(block_size,col);j<col;Ecol=std::min(j+=block_size,col))
-    for(I=i;I<Erow;++I) for(J=j;J<Ecol;++J)
-      res[J*col+I]=data[I*row+J];
+  for(size_t i=0;i<row;i+=block_size){
+    const size_t Erow=std::min(i+block_size,row);
+    for(size_t j=0;j<col;j+=block_size){
+      const size_t Ecol=std::min(j+block_size,col);
+      for(size_t I=i;I<Erow;++I)
+        for(size_t J=j;J<Ecol;++J)
+          res[J*row+I]=data[I*col+J];
+    }
+  }
   std::swap(row,col);
   data=std::move(res);
 }
@@ -583,7 +599,7 @@ matrix<T> matrix<T>::pow(uint64_t b)const{
 }
 
 template<class T>
-template<matrix<T>::ReduceClass reduce_class>
+template<typename matrix<T>::ReduceClass reduce_class>
 auto matrix<T>::reduce_impl() -> std::tuple<matrix<T>::sz_t,std::vector<T>,matrix<T>> {
   if(row==0||col==0) return {0,std::vector<T>(),matrix<T>()};
   const size_t col=this->col;
@@ -721,4 +737,5 @@ auto matrix<T>::inverse() const ->std::pair<sz_t,matrix<T>>{
 }
 
 }// namespace elsie
+#endif
 #endif
