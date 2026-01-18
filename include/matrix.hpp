@@ -21,7 +21,7 @@
 #include <type_traits>
 #include <format>
 
-#if 0
+#if 1
 #include "./detail/_image.hpp"
 #include "./detail/constructor.destructor.operator=.hpp"
 #include "./detail/access.hpp"
@@ -30,7 +30,7 @@
 #include "./detail/operator/scalar.hpp"
 #include "./detail/operator/matrix_addsub.hpp"
 #include "./detail/operator/matrix_mulpow.hpp"
-#include "./detail/operation/reduction.hpp"
+#include "./detail/operator/reduction.hpp"
 #else
 namespace elsie{
 

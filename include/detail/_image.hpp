@@ -6,6 +6,9 @@
 #include <array>
 #include <memory>
 #include <string>
+#include <new>
+#include <concepts>
+#include <type_traits>
 
 namespace elsie{
 
@@ -26,16 +29,12 @@ class matrix{
     bool operator==(const dimension& other)const{return row==other.row&&col==other.col;}
     bool operator!=(const dimension& other)const{return !(*this==other);}
   };
-  using pointer=T*;
-  using const_pointer=const T*;
-  using reference=T&;
-  using const_reference=const T&;
 
   private:
   dimension dim_,leading_;
   // capacityは本当のオーバーフローをしないために，確保している配列の末尾までの距離を持つ
   size_t capacity_data; // { capacity:63, is_view:1 }
-  pointer data_;
+  T* data_;
 
   private:
   static size_t calc_capacity_data(size_t capacity, bool is_view=false){
@@ -61,18 +60,35 @@ class matrix{
   matrix<T> make_view(size_t row, size_t col, size_t row_offset, size_t col_offset)const;
   matrix<T> copy()const;
   matrix<T> copy(size_t row, size_t col, size_t row_offset, size_t col_offset)const;
+  private:
+  static T* allocate(size_t n){
+    if constexpr (alignof(T)<=__STDCPP_DEFAULT_NEW_ALIGNMENT__)
+      return static_cast<T*>(::operator new(n*sizeof(T)));
+    else return static_cast<T*>(::operator new(n*sizeof(T), std::align_val_t(alignof(T))));
+  }
+  static void default_construct(T*p,size_t n,T init=T()){
+    if constexpr(false==std::is_trivially_default_constructible_v<T>)
+      for(size_t i=0;i<n;++i)
+        ::new (static_cast<void*>(p+i)) T(init);
+  }
+  static void free(T*p){
+    if constexpr (alignof(T)<=__STDCPP_DEFAULT_NEW_ALIGNMENT__)
+      ::operator delete(p);
+    else ::operator delete(p, std::align_val_t(alignof(T)));
+  }
+  public:
 
   // access.hpp
   dimension dim()const;
   dimension leading_dim()const;
-  reference operator[](size_t i, size_t j);
-  const_reference operator[](size_t i, size_t j)const;
+  T& operator[](size_t i, size_t j);
+  const T& operator[](size_t i, size_t j)const;
   T val(size_t i, size_t j)const;
   std::span<T> operator[](size_t i);
   std::span<const T> operator[](size_t i)const;
   bool owned()const{ return !is_view(); }
   private:
-  pointer data(size_t i=0, size_t j=0)const{
+  T* data(size_t i=0, size_t j=0)const{
     return data_+i*leading_.col+j;
   }
   public:

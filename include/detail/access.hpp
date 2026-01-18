@@ -16,12 +16,12 @@ matrix<T>::dimension matrix<T>::leading_dim()const{
 }
 
 template<class T>
-matrix<T>::reference matrix<T>::operator[](size_t i, size_t j){
+T& matrix<T>::operator[](size_t i, size_t j){
   return data_[i*leading_.col+j];
 }
 
 template<class T>
-matrix<T>::const_reference matrix<T>::operator[](size_t i, size_t j)const{
+const T& matrix<T>::operator[](size_t i, size_t j)const{
   return data_[i*leading_.col+j];
 }
 

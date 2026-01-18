@@ -7,21 +7,23 @@
 namespace elsie{
 
 template<class T>
-matrix<T>::matrix():dim(),leading(),capacity_data(0),data(nullptr){}
+matrix<T>::matrix():dim_(),leading_(),capacity_data(0),data_(nullptr){}
 
 template<class T>
 matrix<T>::matrix(const dimension&dim)
   :dim_(dim),leading_(dim)
   ,capacity_data(calc_capacity_data(dim.capacity()))
-  ,data_(std::make_unique_for_overwrite<T>(get_capacity())){}
+  ,data_(allocate(get_capacity())){
+  default_construct(data_,get_capacity());
+}
 
 template<class T>
 matrix<T>::matrix(const dimension&dim, const T& init)
   :dim_(dim),leading_(dim)
   ,capacity_data(calc_capacity_data(dim.capacity()))
-  ,data_(std::make_unique_for_overwrite<T>(get_capacity())
+  ,data_(allocate(get_capacity())
 ){
-  std::fill(data_.get(), data_.get()+get_capacity(), init);
+  default_construct(data_,get_capacity(),init);
 }
 
 template<class T>
@@ -43,12 +45,12 @@ matrix<T>::matrix(matrix<T>&& other)
   :dim_(other.dim_),leading_(other.leading_)
   ,capacity_data(other.capacity_data)
   ,data_(other.data_){
-  other.data=nullptr;
+  other.data_=nullptr;
 }
 
 template<class T>
 matrix<T>& matrix<T>::operator=(const matrix<T>& other){
-  if(owned()) delete[] data_;
+  if(owned()) free(data_);
   dim_=other.dim_;
   leading_=other.leading_;
   capacity_data=other.capacity_data|1;
@@ -58,7 +60,7 @@ matrix<T>& matrix<T>::operator=(const matrix<T>& other){
 
 template<class T>
 matrix<T>& matrix<T>::operator=(matrix<T>&& other){
-  if(owned()) delete[] data_;
+  if(owned()) free(data_);
   dim_=other.dim_;
   leading_=other.leading_;
   capacity_data=other.capacity_data;
@@ -66,7 +68,12 @@ matrix<T>& matrix<T>::operator=(matrix<T>&& other){
 }
 
 template<class T>
-matrix<T>::~matrix(){ if(owned()) delete[] data_; }
+matrix<T>::~matrix(){
+  if(owned()) free(data_);
+  dim_=leading_={0,0};
+  capacity_data=1; // 破棄済みならviewとして次の代入時の~matrix()を呼ばせない
+  data_=nullptr;
+}
 
 
 // private constructor

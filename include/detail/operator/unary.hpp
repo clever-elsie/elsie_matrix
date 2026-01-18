@@ -10,8 +10,9 @@ matrix<T>::operator std::string()const{
   std::string ret;
   ret.reserve(get_capacity()*8);
   for(size_t i=0;i<dim().row;++i){
-    for(size_t j=0;j<dim().col;++j)
-      ret+=std::format("{} ",(*this)[i,j]);
+    const std::span<const T> row=(*this)[i];
+    for(const auto&x:row)
+      ret+=static_cast<std::string>(x)+" ";
     ret+="\n";
   }
   return ret;
