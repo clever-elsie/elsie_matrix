@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blocked Matrix Multiplication Visualizer</title>
+    <style>
+        :root {
+            --bg-color: #f4f4f9;
+            --text-color: #333;
+            --matrix-gap: 20px;
+            --cell-border: #ddd;
+            --highlight-block-c: rgba(52, 152, 219, 0.2);
+            --highlight-cell-c: rgba(52, 152, 219, 1);
+            --highlight-block-a: rgba(231, 76, 60, 0.2);
+            --highlight-cell-a: rgba(231, 76, 60, 1);
+            --highlight-block-b: rgba(46, 204, 113, 0.2);
+            --highlight-cell-b: rgba(46, 204, 113, 1);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 1.5rem;
+        }
+
+        .controls {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #555;
+        }
+
+        select, input[type="number"] {
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 8px 16px;
+            background-color: #2c3e50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background-color: #34495e;
+        }
+
+        button.reset {
+            background-color: #95a5a6;
+        }
+
+        .slider-container {
+            display: flex;
+            flex-direction: column;
+            min-width: 200px;
+        }
+
+        .visualization-area {
+            display: flex;
+            gap: var(--matrix-gap);
+            justify-content: center;
+            align-items: flex-start;
+            flex-grow: 1;
+            width: 100%;
+            overflow: auto;
+        }
+
+        .matrix-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .matrix-label {
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+        }
+
+        canvas {
+            background: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            image-rendering: pixelated; /* Crisp edges for blocks */
+        }
+
+        .status-bar {
+            margin-top: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 8px 15px;
+            border-radius: 4px;
+            width: 100%;
+            max-width: 1000px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Access pattern equation */
+        .equation {
+            font-size: 0.9rem;
+            color: #555;
+            margin-top: -10px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Blocked Matrix Multiplication Visualizer</h1>
+    <div class="equation">
+        Visualize: <code>C[i][j] += A[i][k] * B[k][j]</code> with Blocking (Tiling)
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>Matrix Size (N)</label>
+            <input type="number" id="inputN" value="16" min="4" max="64" step="4">
+        </div>
+        <div class="control-group">
+            <label>Block Size (B)</label>
+            <input type="number" id="inputB" value="4" min="2" max="32" step="1">
+        </div>
+        <div class="control-group">
+            <label>Block Loop Order</label>
+            <select id="selectBlockOrder">
+                </select>
+        </div>
+        <div class="control-group">
+            <label>Inner Loop Order</label>
+            <select id="selectInnerOrder">
+                </select>
+        </div>
+        <div class="control-group slider-container">
+            <label>Speed (Ops/Frame): <span id="speedVal">1</span></label>
+            <input type="range" id="speedRange" min="0" max="100" value="0">
+        </div>
+        <div class="control-group" style="flex-direction: row; align-items: flex-end;">
+            <button id="btnToggle">Start</button>
+            <button id="btnReset" class="reset">Reset</button>
+        </div>
+    </div>
+
+    <div class="visualization-area">
+        <div class="matrix-container">
+            <div class="matrix-label">Matrix C (Accumulator)</div>
+            <canvas id="canvasC"></canvas>
+        </div>
+        
+        <div style="font-size: 2rem; align-self: center;">+=</div>
+
+        <div class="matrix-container">
+            <div class="matrix-label">Matrix A</div>
+            <canvas id="canvasA"></canvas>
+        </div>
+
+        <div style="font-size: 2rem; align-self: center;">×</div>
+
+        <div class="matrix-container">
+            <div class="matrix-label">Matrix B</div>
+            <canvas id="canvasB"></canvas>
+        </div>
+    </div>
+
+    <div class="status-bar">
+        <span id="loopStatus">State: Idle</span>
+        <span id="accessStatus">C[?][?] += A[?][?] * B[?][?]</span>
+    </div>
+
+    <script>
+        /**
+         * Logic for High-Level CS Context:
+         * We simulate 6 nested loops.
+         * Outer 3: bi, bj, bk (Block Indices)
+         * Inner 3: i, j, k (Cell Indices)
+         * * Bounds:
+         * bi, bj, bk: 0 to N, step B
+         * i: bi to min(bi+B, N), step 1
+         * j: bj to min(bj+B, N), step 1
+         * k: bk to min(bk+B, N), step 1
+         */
+
+        // Configuration
+        const MAX_CANVAS_SIZE = 300;
+        const COLORS = {
+            grid: '#eee',
+            c_block: 'rgba(52, 152, 219, 0.2)',
+            c_cell:  'rgba(52, 152, 219, 1)',
+            a_block: 'rgba(231, 76, 60, 0.2)',
+            a_cell:  'rgba(231, 76, 60, 1)',
+            b_block: 'rgba(46, 204, 113, 0.2)',
+            b_cell:  'rgba(46, 204, 113, 1)'
+        };
+
+        // State
+        let state = {
+            N: 16,
+            B: 4,
+            running: false,
+            finished: false,
+            speedMultiplier: 1, // calculated from slider
+            vars: { bi:0, bj:0, bk:0, i:0, j:0, k:0 },
+            loopStack: [] // Defines the hierarchy of loops
+        };
+
+        // DOM Elements
+        const els = {
+            n: document.getElementById('inputN'),
+            b: document.getElementById('inputB'),
+            blockOrder: document.getElementById('selectBlockOrder'),
+            innerOrder: document.getElementById('selectInnerOrder'),
+            speed: document.getElementById('speedRange'),
+            speedVal: document.getElementById('speedVal'),
+            btnToggle: document.getElementById('btnToggle'),
+            btnReset: document.getElementById('btnReset'),
+            canvases: {
+                c: document.getElementById('canvasC'),
+                a: document.getElementById('canvasA'),
+                b: document.getElementById('canvasB')
+            },
+            status: document.getElementById('loopStatus'),
+            access: document.getElementById('accessStatus')
+        };
+
+        // Contexts
+        const ctxs = {
+            c: els.canvases.c.getContext('2d'),
+            a: els.canvases.a.getContext('2d'),
+            b: els.canvases.b.getContext('2d')
+        };
+
+        // Permutation Logic
+        const permutations = (arr) => {
+            if (arr.length <= 2) return arr.length === 2 ? [arr, [arr[1], arr[0]]] : [arr];
+            return arr.reduce((acc, item, i) => acc.concat(
+                permutations([...arr.slice(0, i), ...arr.slice(i + 1)]).map(val => [item, ...val])
+            ), []);
+        };
+
+        function initDropdowns() {
+            const p3 = permutations(['i', 'j', 'k']);
+            const pBlock = permutations(['bi', 'bj', 'bk']);
+            
+            pBlock.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.join(',');
+                opt.text = p.join(' -> ');
+                els.blockOrder.add(opt);
+            });
+
+            p3.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.join(',');
+                opt.text = p.join(' -> ');
+                els.innerOrder.add(opt);
+            });
+        }
+
+        // Stepper Logic
+        // We define a Loop Descriptor
+        class Loop {
+            constructor(name, minFn, maxFn, stepFn) {
+                this.name = name;
+                this.minFn = minFn;
+                this.maxFn = maxFn;
+                this.stepFn = stepFn;
+            }
+        }
+
+        function buildLoopStack() {
+            const blockOrder = els.blockOrder.value.split(',');
+            const innerOrder = els.innerOrder.value.split(',');
+            
+            const loopDefs = {
+                // Outer Blocks
+                'bi': new Loop('bi', () => 0, () => state.N, () => state.B),
+                'bj': new Loop('bj', () => 0, () => state.N, () => state.B),
+                'bk': new Loop('bk', () => 0, () => state.N, () => state.B),
+                // Inner Cells
+                'i':  new Loop('i',  () => state.vars.bi, () => Math.min(state.vars.bi + state.B, state.N), () => 1),
+                'j':  new Loop('j',  () => state.vars.bj, () => Math.min(state.vars.bj + state.B, state.N), () => 1),
+                'k':  new Loop('k',  () => state.vars.bk, () => Math.min(state.vars.bk + state.B, state.N), () => 1)
+            };
+
+            const stack = [];
+            // Push outermost first
+            blockOrder.forEach(name => stack.push(loopDefs[name]));
+            innerOrder.forEach(name => stack.push(loopDefs[name]));
+            
+            return stack;
+        }
+
+        function resetSimulation() {
+            state.N = parseInt(els.n.value);
+            state.B = parseInt(els.b.value);
+            state.finished = false;
+            state.running = false;
+            els.btnToggle.innerText = "Start";
+            
+            // Initialize vars
+            state.vars = { bi:0, bj:0, bk:0, i:0, j:0, k:0 };
+            
+            // Build stack
+            state.loopStack = buildLoopStack();
+
+            // Initialize all variables to their start values according to hierarchy
+            for(let loop of state.loopStack) {
+                state.vars[loop.name] = loop.minFn();
+            }
+
+            resizeCanvases();
+            draw();
+            updateStatus();
+        }
+
+        /**
+         * Core Logic: Advances the loop state by 1 step.
+         * Returns true if step was successful, false if finished.
+         */
+        function step() {
+            if (state.finished) return false;
+
+            // We increment the innermost loop (last in stack)
+            // If it overflows, we reset it and increment the one above, recursively.
+            let idx = state.loopStack.length - 1;
+            
+            while (idx >= 0) {
+                const loop = state.loopStack[idx];
+                const currentVal = state.vars[loop.name];
+                const stepVal = loop.stepFn();
+                const limit = loop.maxFn(); // Exclusive upper bound logic for simple loops often, but here let's be careful.
+                
+                // Usually loops are: for(v = min; v < max; v += step)
+                // So valid range is [min, max)
+                
+                const nextVal = currentVal + stepVal;
+                
+                if (nextVal < limit) {
+                    // Valid increment
+                    state.vars[loop.name] = nextVal;
+                    
+                    // IMPORTANT: When a parent loop increments, all child loops 
+                    // must be reset to their NEW minFn() values.
+                    // Loop from idx+1 to end
+                    for (let childIdx = idx + 1; childIdx < state.loopStack.length; childIdx++) {
+                        const childLoop = state.loopStack[childIdx];
+                        state.vars[childLoop.name] = childLoop.minFn();
+                    }
+                    return true; // Step complete
+                } else {
+                    // Overflow this level, try to increment parent
+                    idx--;
+                }
+            }
+
+            // If we exit loop with idx < 0, entire process finished
+            state.finished = true;
+            state.running = false;
+            els.btnToggle.innerText = "Restart";
+            return false;
+        }
+
+        // Visualization
+        function resizeCanvases() {
+            const size = Math.min(MAX_CANVAS_SIZE, window.innerWidth / 3.5);
+            [els.canvases.c, els.canvases.a, els.canvases.b].forEach(c => {
+                c.width = size;
+                c.height = size;
+            });
+        }
+
+        function drawMatrix(ctx, matrixName, activeRow, activeCol, blockRow, blockCol, isResult) {
+            const w = ctx.canvas.width;
+            const cellSize = w / state.N;
+            
+            ctx.clearRect(0, 0, w, w);
+
+            // 1. Draw Grid
+            ctx.strokeStyle = COLORS.grid;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let i = 0; i <= state.N; i++) {
+                const p = i * cellSize;
+                ctx.moveTo(p, 0); ctx.lineTo(p, w);
+                ctx.moveTo(0, p); ctx.lineTo(w, p);
+            }
+            ctx.stroke();
+
+            // 2. Draw Block Highlight
+            // Block range: [blockRow, blockRow + B]
+            // Clip to N
+            const bStartRow = blockRow * cellSize;
+            const bStartCol = blockCol * cellSize;
+            const bWidth = Math.min(state.B, state.N - blockCol) * cellSize;
+            const bHeight = Math.min(state.B, state.N - blockRow) * cellSize;
+
+            let blockColor, cellColor;
+            if (matrixName === 'C') { blockColor = COLORS.c_block; cellColor = COLORS.c_cell; }
+            else if (matrixName === 'A') { blockColor = COLORS.a_block; cellColor = COLORS.a_cell; }
+            else { blockColor = COLORS.b_block; cellColor = COLORS.b_cell; }
+
+            ctx.fillStyle = blockColor;
+            ctx.fillRect(bStartCol, bStartRow, bWidth, bHeight);
+            
+            // Draw Block Border for clarity
+            ctx.strokeStyle = cellColor;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(bStartCol, bStartRow, bWidth, bHeight);
+
+            // 3. Draw Active Cell
+            // Note: If finished, don't draw active cell
+            if (!state.finished) {
+                const cX = activeCol * cellSize;
+                const cY = activeRow * cellSize;
+                
+                ctx.fillStyle = cellColor;
+                ctx.fillRect(cX, cY, cellSize, cellSize);
+            }
+        }
+
+        function draw() {
+            // C: [i][j], Block: [bi][bj]
+            drawMatrix(ctxs.c, 'C', state.vars.i, state.vars.j, state.vars.bi, state.vars.bj, true);
+            
+            // A: [i][k], Block: [bi][bk]
+            drawMatrix(ctxs.a, 'A', state.vars.i, state.vars.k, state.vars.bi, state.vars.bk, false);
+            
+            // B: [k][j], Block: [bk][bj]
+            drawMatrix(ctxs.b, 'B', state.vars.k, state.vars.j, state.vars.bk, state.vars.bj, false);
+        }
+
+        function updateStatus() {
+            const v = state.vars;
+            const stackNames = state.loopStack.map(l => l.name).join(' → ');
+            els.status.innerText = `Order: ${stackNames} | bi:${v.bi} bj:${v.bj} bk:${v.bk} i:${v.i} j:${v.j} k:${v.k}`;
+            els.access.innerText = `C[${v.i}][${v.j}] += A[${v.i}][${v.k}] * B[${v.k}][${v.j}]`;
+        }
+
+        // Animation Loop
+        function animate() {
+            if (!state.running) return;
+
+            // Calculate operations per frame based on slider
+            // Slider 0-100.
+            // Low range: slow linear. High range: exponential.
+            const sliderVal = parseInt(els.speed.value);
+            let opsPerFrame = 1;
+            
+            if (sliderVal < 20) {
+                // Very slow: handle via throttle? 
+                // Currently just doing 1 op per frame but RequestAnimation frame is 60fps.
+                // For "Visual Slow", we might want to skip frames, but let's keep it simple: 1 op/frame min.
+                // To make it super slow, we could use a counter, but let's assume min speed 1 is okay.
+                // Actually user asked for "Very slow".
+                opsPerFrame = 1; 
+                // To support slower than 60fps, we could use setTimeout, but let's just stick to 1 op per few frames if needed.
+                // For now, let's map slider 0 -> 1 op every 10 frames
+            } 
+            
+            let framesToWait = 0;
+            if (sliderVal < 10) {
+                opsPerFrame = 1;
+                framesToWait = 10 - sliderVal; 
+            } else {
+                // 10 to 100 mapping to 1 to 1000?
+                // exponential scale
+                opsPerFrame = Math.floor(Math.pow(sliderVal - 9, 1.8)); 
+            }
+            
+            els.speedVal.innerText = opsPerFrame;
+
+            // Since we can't easily skip frames in this simple loop structure without global vars,
+            // let's just run the loop opsPerFrame times.
+            // (Handling the "very slow" case by just being fast is a compromise, 
+            // but for smooth viz at N=64 we need speed).
+            
+            // Hack for very slow speed (slider < 10)
+            if (sliderVal < 10 && frameCounter++ % (10 - sliderVal) !== 0) {
+                requestAnimationFrame(animate);
+                return;
+            }
+
+            for (let s = 0; s < opsPerFrame; s++) {
+                if (!step()) break;
+            }
+
+            draw();
+            updateStatus();
+
+            if (state.running) {
+                requestAnimationFrame(animate);
+            }
+        }
+
+        let frameCounter = 0;
+
+        // Event Listeners
+        els.btnToggle.addEventListener('click', () => {
+            if (state.finished) {
+                resetSimulation();
+                state.running = true;
+                animate();
+                els.btnToggle.innerText = "Pause";
+            } else {
+                state.running = !state.running;
+                if (state.running) {
+                    els.btnToggle.innerText = "Pause";
+                    animate();
+                } else {
+                    els.btnToggle.innerText = "Start";
+                }
+            }
+        });
+
+        els.btnReset.addEventListener('click', resetSimulation);
+        
+        [els.n, els.b, els.blockOrder, els.innerOrder].forEach(el => {
+            el.addEventListener('change', resetSimulation);
+        });
+
+        els.speed.addEventListener('input', () => {
+             // Just update display, logic is in animate
+             const sliderVal = parseInt(els.speed.value);
+             let val = 1;
+             if (sliderVal >= 10) val = Math.floor(Math.pow(sliderVal - 9, 1.8));
+             els.speedVal.innerText = val;
+        });
+
+        window.addEventListener('resize', () => {
+            resizeCanvases();
+            draw();
+        });
+
+        // Init
+        initDropdowns();
+        resetSimulation();
+
+    </script>
+</body>
+</html>
