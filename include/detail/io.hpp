@@ -2,64 +2,9 @@
 #define ELSIE_MATRIX_IO_HPP
 
 #include "./_image.hpp"
+#include <charconv>
 
 namespace elsie{
-
-namespace matrix_io{
-  template<class Char, class Traits, class UInt>
-  inline bool fast_read_uint(std::basic_istream<Char, Traits>& is, UInt& out)
-    requires (std::same_as<UInt, uint32_t> || std::same_as<UInt, uint64_t>)
-  {
-    using stream_type = std::basic_istream<Char, Traits>;
-    using int_type = typename Traits::int_type;
-    auto* sb = is.rdbuf();
-    if(!sb){
-      is.setstate(stream_type::badbit);
-      return false;
-    }
-
-    int_type ic = sb->sgetc();
-    if(Traits::eq_int_type(ic, Traits::eof())){
-      is.setstate(stream_type::eofbit | stream_type::failbit);
-      return false;
-    }
-
-    // whitespace skip (locale 非依存)
-    auto is_space = [](Char ch) constexpr {
-      return ch==' ' || ch=='\n' || ch=='\t' || ch=='\r' || ch=='\f' || ch=='\v';
-    };
-    Char c = Traits::to_char_type(ic);
-    while(is_space(c)){
-      ic = sb->snextc();
-      if(Traits::eq_int_type(ic, Traits::eof())){
-        is.setstate(stream_type::eofbit | stream_type::failbit);
-        return false;
-      }
-      c = Traits::to_char_type(ic);
-    }
-
-    if(c < Char('0') || c > Char('9')){
-      is.setstate(stream_type::failbit);
-      return false;
-    }
-
-    UInt value = 0;
-    for(;;){
-      value = value * 10 + static_cast<UInt>(c - Char('0'));
-      ic = sb->snextc();
-      if(Traits::eq_int_type(ic, Traits::eof())){
-        is.setstate(stream_type::eofbit);
-        break;
-      }
-      c = Traits::to_char_type(ic);
-      if(c < Char('0') || c > Char('9'))
-        break;
-    }
-
-    out = value;
-    return true;
-  }
-} // namespace matrix_io
 
 template<class Char, class Traits, class T>
 std::basic_ostream<Char, Traits>& operator<<(std::basic_ostream<Char, Traits>& os, const matrix<T>& mat) {
@@ -115,8 +60,26 @@ void matrix<T>::read(std::basic_istream<Char, Traits>& is) requires (matrix_io::
     for(size_t j=0;j<col_sz;++j){
       typename T::value_type value;
       if constexpr(std::same_as<typename T::value_type,uint32_t> || std::same_as<typename T::value_type,uint64_t>){
-        if(!matrix_io::fast_read_uint(is, value))[[unlikely]]
-          return;
+        static_assert(std::same_as<Char, char>, "fast modint input uses std::from_chars, which requires Char=char.");
+        auto* sb = is.rdbuf();
+        char c;
+        // whitespace skip (locale 非依存)
+        do{
+          const auto ic = sb->sbumpc();
+          if(Traits::eq_int_type(ic, Traits::eof())) return;
+          c = Traits::to_char_type(ic);
+        }while(c==' ' || c=='\n' || c=='\t' || c=='\r' || c=='\f' || c=='\v');
+
+        char buf[32];
+        size_t len = 0;
+        for(;;){
+          buf[len++] = c;
+          const auto ic = sb->sbumpc();
+          if(Traits::eq_int_type(ic, Traits::eof())) break;
+          c = Traits::to_char_type(ic);
+          if(c<'0' || c>'9') break;
+        }
+        (void)std::from_chars(buf, buf + len, value, 10);
       }else{
         is>>value;
       }
