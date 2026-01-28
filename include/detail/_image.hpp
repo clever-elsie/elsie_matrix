@@ -137,6 +137,12 @@ class matrix{
   void pow(uint64_t);
   matrix<T> pow(uint64_t)const;
   private:
+  template<class U, class V>
+  matrix<T>&fma_impl_naive(const matrix<U>&,const matrix<V>&);
+  template<class U, class V>
+  matrix<T>&fma_impl_blocked(const matrix<U>&,const matrix<V>&);
+  template<class U, class V>
+  matrix<T>&fma_impl_strassen(const matrix<U>&,const matrix<V>&);
   matrix<T> pow_impl(matrix<T>&&k,uint64_t b);
   public:
 
