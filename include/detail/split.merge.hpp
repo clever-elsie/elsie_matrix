@@ -17,8 +17,8 @@ matrix<T>::split()const{
   const ssize_t W=(std::max(row,col)+1)>>1;
   // W x W,   W x C-W
   // R-W x W, R-W x C-W
-  const ssize_t RW=std::max(ssize_t(0),row-W);
-  const ssize_t CW=std::max(ssize_t(0),col-W);
+  const ssize_t RW=std::max<ssize_t>(ssize_t(0),(ssize_t)row-W);
+  const ssize_t CW=std::max<ssize_t>(ssize_t(0),(ssize_t)col-W);
   return std::array<matrix<T>,4>{
     make_view(W,W,0,0),  make_view(W,CW,0,W),
     make_view(RW,W,W,0), make_view(RW,CW,W,W)
